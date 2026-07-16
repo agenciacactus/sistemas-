@@ -106,6 +106,8 @@ model Client {
   phone     String?
   status    ClientStatus @default(ACTIVE)
   notes     String?
+  // token do portal público de aprovação (link compartilhável com o cliente)
+  portalToken String?    @unique
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
@@ -231,11 +233,23 @@ enum DeliverableStatus {
   DELIVERED
 }
 
+// Retorno do cliente no portal de aprovação
+enum ApprovalStatus {
+  PENDING // aguardando o cliente
+  APPROVED // aprovado pelo cliente
+  CHANGES_REQUESTED // cliente pediu ajustes
+}
+
 model Deliverable {
   id         String            @id @default(cuid())
   title      String
   type       String? // ex: post, banner, vídeo, landing page
   status     DeliverableStatus @default(BRIEFING)
+  // aprovação do cliente via portal
+  approval   ApprovalStatus    @default(PENDING)
+  clientNote String? // observação do cliente ao pedir ajustes
+  reviewedAt DateTime? // quando o cliente revisou
+  previewUrl String? // link/arquivo da peça para o cliente ver
   dueDate    DateTime?
   priceCents Int               @default(0)
   createdAt  DateTime          @default(now())

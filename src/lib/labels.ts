@@ -31,6 +31,12 @@ export const proposalStatus: Record<string, Meta> = {
   EXPIRED: { label: "Expirada", tone: "amber" },
 };
 
+export const approvalStatus: Record<string, Meta> = {
+  PENDING: { label: "Aguardando cliente", tone: "amber" },
+  APPROVED: { label: "Aprovado", tone: "green" },
+  CHANGES_REQUESTED: { label: "Ajustes solicitados", tone: "red" },
+};
+
 export const deliverableStatus: Record<string, Meta> = {
   BRIEFING: { label: "Briefing", tone: "gray" },
   IN_PRODUCTION: { label: "Em produção", tone: "blue" },
