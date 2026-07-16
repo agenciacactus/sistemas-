@@ -20,6 +20,15 @@ export function parseToCents(value: string): number {
   return Math.round(num * 100);
 }
 
+/** Formata uma porcentagem já em escala 0–100. Ex.: 42.5 -> "42,5%" */
+export function formatPct(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return `${value.toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  })}%`;
+}
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;

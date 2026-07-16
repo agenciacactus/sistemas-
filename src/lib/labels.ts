@@ -31,6 +31,12 @@ export const proposalStatus: Record<string, Meta> = {
   EXPIRED: { label: "Expirada", tone: "amber" },
 };
 
+export const approvalStatus: Record<string, Meta> = {
+  PENDING: { label: "Aguardando cliente", tone: "amber" },
+  APPROVED: { label: "Aprovado", tone: "green" },
+  CHANGES_REQUESTED: { label: "Ajustes solicitados", tone: "red" },
+};
+
 export const deliverableStatus: Record<string, Meta> = {
   BRIEFING: { label: "Briefing", tone: "gray" },
   IN_PRODUCTION: { label: "Em produção", tone: "blue" },
@@ -81,6 +87,14 @@ export const socialPlatform: Record<string, Meta> = {
   LINKEDIN: { label: "LinkedIn", tone: "blue" },
   YOUTUBE: { label: "YouTube", tone: "red" },
   X: { label: "X", tone: "gray" },
+};
+
+export const channel: Record<string, Meta> = {
+  ORGANIC: { label: "Busca orgânica", tone: "green" },
+  PAID: { label: "Mídia paga", tone: "blue" },
+  SOCIAL: { label: "Redes sociais", tone: "purple" },
+  DIRECT: { label: "Direto", tone: "gray" },
+  REFERRAL: { label: "Referência", tone: "amber" },
 };
 
 export const postStatus: Record<string, Meta> = {

@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { requireUser } from "@/lib/session-guard";
 import { prisma } from "@/lib/prisma";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, formatPct } from "@/lib/format";
+import { getClientProfit } from "@/lib/rentability";
 import { Card, PageHeader, Badge, StatCard, EmptyState } from "@/components/ui";
+import { CopyLink } from "@/components/copy-link";
 import {
   meta,
   clientStatus,
@@ -12,6 +15,7 @@ import {
   entryType,
   socialPlatform,
 } from "@/lib/labels";
+import { generatePortalToken } from "../actions";
 
 export default async function ClientDetailPage({
   params,
@@ -29,18 +33,21 @@ export default async function ClientDetailPage({
       proposals: { orderBy: { createdAt: "desc" } },
       socialAccounts: true,
       financialEntries: { orderBy: { dueDate: "asc" } },
+      deliverables: { where: { status: "APPROVAL" }, orderBy: { dueDate: "asc" } },
     },
   });
 
   if (!client) notFound();
 
   const st = meta(clientStatus, client.status);
-  const receivable = client.financialEntries
-    .filter((e) => e.type === "RECEIVABLE" && e.status === "PENDING")
-    .reduce((s, e) => s + e.amountCents, 0);
-  const payable = client.financialEntries
-    .filter((e) => e.type === "PAYABLE" && e.status === "PENDING")
-    .reduce((s, e) => s + e.amountCents, 0);
+  const profit = await getClientProfit(user.agencyId, client.id);
+
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const portalUrl = client.portalToken
+    ? `${proto}://${host}/portal/${client.portalToken}`
+    : null;
 
   return (
     <div>
@@ -57,10 +64,63 @@ export default async function ClientDetailPage({
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Projetos" value={String(client.projects.length)} />
-        <StatCard label="Propostas" value={String(client.proposals.length)} />
-        <StatCard label="A receber" value={formatBRL(receivable)} tone="positive" />
-        <StatCard label="A pagar" value={formatBRL(payable)} tone="negative" />
+        <StatCard label="Receita" value={formatBRL(profit?.revenueCents ?? 0)} tone="positive" />
+        <StatCard
+          label="Margem"
+          value={formatBRL(profit?.marginCents ?? 0)}
+          tone={(profit?.marginCents ?? 0) >= 0 ? "positive" : "negative"}
+        />
+        <StatCard
+          label="Margem %"
+          value={formatPct(profit?.marginPct ?? null)}
+          hint={`${(profit?.hours ?? 0).toLocaleString("pt-BR")}h apontadas`}
+          tone={(profit?.marginCents ?? 0) >= 0 ? "positive" : "negative"}
+        />
       </div>
+
+      <Card className="mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-gray-900">Portal do cliente</h2>
+            <p className="text-sm text-gray-500">
+              Link público de aprovação de peças
+              {client.deliverables.length > 0 && (
+                <>
+                  {" · "}
+                  <span className="font-medium text-amber-600">
+                    {client.deliverables.length} aguardando aprovação
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          {portalUrl ? (
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50"
+            >
+              Abrir portal ↗
+            </a>
+          ) : (
+            <form action={generatePortalToken}>
+              <input type="hidden" name="clientId" value={client.id} />
+              <button
+                type="submit"
+                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+              >
+                Gerar link do portal
+              </button>
+            </form>
+          )}
+        </div>
+        {portalUrl && (
+          <div className="mt-3">
+            <CopyLink url={portalUrl} />
+          </div>
+        )}
+      </Card>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card>

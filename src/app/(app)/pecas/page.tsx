@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatBRL, formatDate } from "@/lib/format";
 import { PageHeader, Badge } from "@/components/ui";
 import { CollapsibleForm, Field, inputClass } from "@/components/collapsible-form";
-import { meta, deliverableStatus } from "@/lib/labels";
+import { meta, deliverableStatus, approvalStatus } from "@/lib/labels";
 import { createDeliverable, advanceDeliverable } from "./actions";
 
 const COLUMNS = ["BRIEFING", "IN_PRODUCTION", "REVIEW", "APPROVAL", "DELIVERED"];
@@ -93,6 +93,18 @@ export default async function PecasPage() {
                         </span>
                       )}
                     </div>
+                    {d.approval !== "PENDING" && (
+                      <div className="mt-2">
+                        <Badge tone={meta(approvalStatus, d.approval).tone}>
+                          {meta(approvalStatus, d.approval).label}
+                        </Badge>
+                        {d.approval === "CHANGES_REQUESTED" && d.clientNote && (
+                          <p className="mt-1 rounded bg-red-50 px-2 py-1 text-xs text-red-700">
+                            {d.clientNote}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     {d.dueDate && (
                       <p className="mt-1 text-xs text-gray-400">Prazo: {formatDate(d.dueDate)}</p>
                     )}

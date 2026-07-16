@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session-guard";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +24,23 @@ export async function createClient(formData: FormData) {
   });
 
   revalidatePath("/clientes");
+}
+
+export async function generatePortalToken(formData: FormData) {
+  const user = await requireUser();
+  const clientId = String(formData.get("clientId") ?? "");
+
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, agencyId: user.agencyId },
+  });
+  if (!client) return;
+
+  await prisma.client.update({
+    where: { id: clientId },
+    data: { portalToken: randomBytes(12).toString("hex") },
+  });
+
+  revalidatePath(`/clientes/${clientId}`);
 }
 
 function strOrNull(v: FormDataEntryValue | null): string | null {
