@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Limpa dados (ordem respeita as FKs)
+  await prisma.timeEntry.deleteMany();
   await prisma.socialPost.deleteMany();
   await prisma.socialAccount.deleteMany();
   await prisma.campaign.deleteMany();
@@ -35,27 +36,31 @@ async function main() {
       email: "atendimento@agenciacactus.com.br",
       passwordHash,
       role: "OWNER",
+      hourlyCostCents: 12000, // R$ 120/h
       agencyId: agency.id,
     },
   });
 
-  await prisma.user.createMany({
-    data: [
-      {
-        name: "Gestor de Tráfego",
-        email: "trafego@agenciacactus.com.br",
-        passwordHash,
-        role: "TRAFFIC",
-        agencyId: agency.id,
-      },
-      {
-        name: "Social Media",
-        email: "social@agenciacactus.com.br",
-        passwordHash,
-        role: "SOCIAL",
-        agencyId: agency.id,
-      },
-    ],
+  const trafego = await prisma.user.create({
+    data: {
+      name: "Gestor de Tráfego",
+      email: "trafego@agenciacactus.com.br",
+      passwordHash,
+      role: "TRAFFIC",
+      hourlyCostCents: 9000, // R$ 90/h
+      agencyId: agency.id,
+    },
+  });
+
+  const social = await prisma.user.create({
+    data: {
+      name: "Social Media",
+      email: "social@agenciacactus.com.br",
+      passwordHash,
+      role: "SOCIAL",
+      hourlyCostCents: 7000, // R$ 70/h
+      agencyId: agency.id,
+    },
   });
 
   // Clientes
@@ -330,6 +335,31 @@ async function main() {
       },
     ],
   });
+
+  // Apontamento de horas (custo = horas * custo/hora do colaborador)
+  const timeEntries = [
+    { user: owner, client: nomad, project: nomadProject, hours: 6, desc: "Atendimento e planejamento" },
+    { user: social, client: nomad, project: nomadProject, hours: 14, desc: "Produção de conteúdo e agendamento" },
+    { user: trafego, client: nomad, project: nomadProject, hours: 5, desc: "Gestão de campanhas" },
+    { user: owner, client: vertex, project: vertexProject, hours: 4, desc: "Atendimento" },
+    { user: trafego, client: vertex, project: vertexProject, hours: 18, desc: "Setup e otimização de tráfego" },
+    { user: social, client: vertex, project: vertexProject, hours: 10, desc: "Criativos e social" },
+  ];
+
+  for (const t of timeEntries) {
+    await prisma.timeEntry.create({
+      data: {
+        date: new Date("2026-07-10"),
+        hours: t.hours,
+        description: t.desc,
+        costCents: Math.round(t.hours * t.user.hourlyCostCents),
+        agencyId: agency.id,
+        userId: t.user.id,
+        clientId: t.client.id,
+        projectId: t.project.id,
+      },
+    });
+  }
 
   console.log("Seed concluído.");
   console.log("Login: atendimento@agenciacactus.com.br / senha: cactus123");

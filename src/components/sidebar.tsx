@@ -12,6 +12,7 @@ const NAV = [
   { href: "/midia", label: "Mídia & Tráfego", icon: "🚀" },
   { href: "/redes", label: "Redes Sociais", icon: "📱" },
   { href: "/financeiro", label: "Financeiro", icon: "💰" },
+  { href: "/rentabilidade", label: "Rentabilidade", icon: "💹" },
 ];
 
 export function Sidebar() {

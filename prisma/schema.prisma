@@ -36,6 +36,7 @@ model Agency {
   campaigns        Campaign[]
   socialAccounts   SocialAccount[]
   socialPosts      SocialPost[]
+  timeEntries      TimeEntry[]
 }
 
 enum Role {
@@ -54,6 +55,8 @@ model User {
   passwordHash String
   role         Role     @default(MANAGER)
   active       Boolean  @default(true)
+  // custo por hora do colaborador (em centavos) — base do cálculo de rentabilidade
+  hourlyCostCents Int   @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -65,6 +68,7 @@ model User {
   createdProposals Proposal[]
   managedCampaigns Campaign[]
   assignedPosts    SocialPost[]
+  timeEntries      TimeEntry[]
 
   @@index([agencyId])
 }
@@ -117,6 +121,7 @@ model Client {
   mediaPlans       MediaPlan[]
   campaigns        Campaign[]
   socialAccounts   SocialAccount[]
+  timeEntries      TimeEntry[]
 
   @@index([agencyId])
 }
@@ -149,6 +154,7 @@ model Project {
   mediaPlans   MediaPlan[]
   campaigns    Campaign[]
   socialPosts  SocialPost[]
+  timeEntries  TimeEntry[]
 
   @@index([clientId])
   @@index([agencyId])
@@ -441,4 +447,36 @@ model SocialPost {
   @@index([agencyId])
   @@index([accountId])
   @@index([scheduledAt])
+}
+
+// ---------------------------------------------------------------------------
+// APONTAMENTO DE HORAS (base da rentabilidade por conta)
+// ---------------------------------------------------------------------------
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  date        DateTime
+  hours       Float
+  description String?
+  // custo em centavos, "congelado" no momento do apontamento
+  // (hours * hourlyCostCents do colaborador) para preservar histórico
+  costCents   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([agencyId])
+  @@index([clientId])
+  @@index([userId])
 }

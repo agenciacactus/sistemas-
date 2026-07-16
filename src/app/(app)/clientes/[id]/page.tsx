@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/session-guard";
 import { prisma } from "@/lib/prisma";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, formatPct } from "@/lib/format";
+import { getClientProfit } from "@/lib/rentability";
 import { Card, PageHeader, Badge, StatCard, EmptyState } from "@/components/ui";
 import {
   meta,
@@ -35,12 +36,7 @@ export default async function ClientDetailPage({
   if (!client) notFound();
 
   const st = meta(clientStatus, client.status);
-  const receivable = client.financialEntries
-    .filter((e) => e.type === "RECEIVABLE" && e.status === "PENDING")
-    .reduce((s, e) => s + e.amountCents, 0);
-  const payable = client.financialEntries
-    .filter((e) => e.type === "PAYABLE" && e.status === "PENDING")
-    .reduce((s, e) => s + e.amountCents, 0);
+  const profit = await getClientProfit(user.agencyId, client.id);
 
   return (
     <div>
@@ -57,9 +53,18 @@ export default async function ClientDetailPage({
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Projetos" value={String(client.projects.length)} />
-        <StatCard label="Propostas" value={String(client.proposals.length)} />
-        <StatCard label="A receber" value={formatBRL(receivable)} tone="positive" />
-        <StatCard label="A pagar" value={formatBRL(payable)} tone="negative" />
+        <StatCard label="Receita" value={formatBRL(profit?.revenueCents ?? 0)} tone="positive" />
+        <StatCard
+          label="Margem"
+          value={formatBRL(profit?.marginCents ?? 0)}
+          tone={(profit?.marginCents ?? 0) >= 0 ? "positive" : "negative"}
+        />
+        <StatCard
+          label="Margem %"
+          value={formatPct(profit?.marginPct ?? null)}
+          hint={`${(profit?.hours ?? 0).toLocaleString("pt-BR")}h apontadas`}
+          tone={(profit?.marginCents ?? 0) >= 0 ? "positive" : "negative"}
+        />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">

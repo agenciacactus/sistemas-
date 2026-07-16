@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/session-guard";
 import { prisma } from "@/lib/prisma";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, formatPct } from "@/lib/format";
+import { getClientProfitability, sumProfit } from "@/lib/rentability";
 import { Card, PageHeader, StatCard, Badge } from "@/components/ui";
 import { meta, proposalStatus, entryType, campaignStatus } from "@/lib/labels";
 
@@ -53,6 +54,8 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  const profitTotals = sumProfit(await getClientProfitability(agencyId));
+
   const mrr = feeProposals._sum.totalCents ?? 0;
   const receivable = receivablePending._sum.amountCents ?? 0;
   const payable = payablePending._sum.amountCents ?? 0;
@@ -85,9 +88,10 @@ export default async function DashboardPage() {
         <StatCard label="A receber (pendente)" value={formatBRL(receivable)} tone="positive" />
         <StatCard label="A pagar (pendente)" value={formatBRL(payable)} tone="negative" />
         <StatCard
-          label="Saldo previsto"
-          value={formatBRL(receivable - payable)}
-          tone={receivable - payable >= 0 ? "positive" : "negative"}
+          label="Margem das contas"
+          value={formatBRL(profitTotals.marginCents)}
+          hint={`Margem média ${formatPct(profitTotals.marginPct)}`}
+          tone={profitTotals.marginCents >= 0 ? "positive" : "negative"}
         />
         <StatCard label="Posts agendados" value={String(scheduledPosts)} />
       </div>
