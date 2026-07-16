@@ -37,6 +37,7 @@ model Agency {
   socialAccounts   SocialAccount[]
   socialPosts      SocialPost[]
   timeEntries      TimeEntry[]
+  analytics        AnalyticsDaily[]
 }
 
 enum Role {
@@ -122,6 +123,7 @@ model Client {
   campaigns        Campaign[]
   socialAccounts   SocialAccount[]
   timeEntries      TimeEntry[]
+  analytics        AnalyticsDaily[]
 
   @@index([agencyId])
 }
@@ -479,4 +481,35 @@ model TimeEntry {
   @@index([agencyId])
   @@index([clientId])
   @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// ANALYTICS (métricas de site — estilo GA4, prontas para sincronização)
+// ---------------------------------------------------------------------------
+
+enum Channel {
+  ORGANIC // busca orgânica
+  PAID // mídia paga
+  SOCIAL // redes sociais
+  DIRECT // acesso direto
+  REFERRAL // referência
+}
+
+model AnalyticsDaily {
+  id          String   @id @default(cuid())
+  date        DateTime
+  channel     Channel
+  sessions    Int      @default(0)
+  users       Int      @default(0)
+  conversions Int      @default(0)
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId])
+  @@index([clientId])
+  @@index([date])
 }

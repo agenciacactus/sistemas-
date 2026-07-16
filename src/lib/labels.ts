@@ -83,6 +83,14 @@ export const socialPlatform: Record<string, Meta> = {
   X: { label: "X", tone: "gray" },
 };
 
+export const channel: Record<string, Meta> = {
+  ORGANIC: { label: "Busca orgânica", tone: "green" },
+  PAID: { label: "Mídia paga", tone: "blue" },
+  SOCIAL: { label: "Redes sociais", tone: "purple" },
+  DIRECT: { label: "Direto", tone: "gray" },
+  REFERRAL: { label: "Referência", tone: "amber" },
+};
+
 export const postStatus: Record<string, Meta> = {
   IDEA: { label: "Ideia", tone: "gray" },
   DRAFT: { label: "Rascunho", tone: "gray" },

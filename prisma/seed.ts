@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Limpa dados (ordem respeita as FKs)
+  await prisma.analyticsDaily.deleteMany();
   await prisma.timeEntry.deleteMany();
   await prisma.socialPost.deleteMany();
   await prisma.socialAccount.deleteMany();
@@ -360,6 +361,66 @@ async function main() {
       },
     });
   }
+
+  // Métricas de analytics (estilo GA4) — 60 dias, por canal.
+  // Em produção viriam da sincronização com o GA4/plataformas.
+  const channels = ["ORGANIC", "PAID", "SOCIAL", "DIRECT", "REFERRAL"] as const;
+  // peso relativo de cada canal + base de sessões por cliente
+  const channelWeight: Record<string, number> = {
+    ORGANIC: 0.34,
+    PAID: 0.28,
+    SOCIAL: 0.2,
+    DIRECT: 0.12,
+    REFERRAL: 0.06,
+  };
+  const analyticsSpec = [
+    { client: nomad, base: 420, growth: 1.18, conv: 0.021 },
+    { client: vertex, base: 260, growth: 1.35, conv: 0.034 },
+  ];
+
+  const today = new Date("2026-07-16");
+  const analyticsRows: {
+    date: Date;
+    channel: (typeof channels)[number];
+    sessions: number;
+    users: number;
+    conversions: number;
+    agencyId: string;
+    clientId: string;
+  }[] = [];
+
+  for (const spec of analyticsSpec) {
+    for (let d = 59; d >= 0; d--) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - d);
+      const progress = (59 - d) / 59; // 0 -> 1 ao longo do período
+      const trend = 1 + (spec.growth - 1) * progress;
+      const weekday = date.getDay();
+      const weekendDip = weekday === 0 || weekday === 6 ? 0.72 : 1;
+      // variação diária suave e determinística
+      const wobble = 1 + 0.14 * Math.sin((59 - d) / 2.3);
+      const daySessions = spec.base * trend * weekendDip * wobble;
+
+      for (const channel of channels) {
+        const sessions = Math.max(1, Math.round(daySessions * channelWeight[channel]));
+        const users = Math.round(sessions * 0.82);
+        // mídia paga converte melhor; direto/orgânico médio
+        const convMult = channel === "PAID" ? 1.6 : channel === "REFERRAL" ? 0.7 : 1;
+        const conversions = Math.round(sessions * spec.conv * convMult);
+        analyticsRows.push({
+          date,
+          channel,
+          sessions,
+          users,
+          conversions,
+          agencyId: agency.id,
+          clientId: spec.client.id,
+        });
+      }
+    }
+  }
+
+  await prisma.analyticsDaily.createMany({ data: analyticsRows });
 
   console.log("Seed concluído.");
   console.log("Login: atendimento@agenciacactus.com.br / senha: cactus123");
