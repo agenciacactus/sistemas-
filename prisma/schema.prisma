@@ -1,0 +1,444 @@
+// Schema do Sistema de Gestão de Agências (Cactus)
+// Modela toda a visão: multi-agência, clientes, projetos, comercial (fee/peças),
+// financeiro, mídia/tráfego pago e gestão de redes sociais (estilo mLabs).
+// Dev usa SQLite; para produção troque o provider para "postgresql".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// NÚCLEO / MULTI-AGÊNCIA
+// ---------------------------------------------------------------------------
+
+model Agency {
+  id        String   @id @default(cuid())
+  name      String
+  cnpj      String?
+  email     String?
+  phone     String?
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            User[]
+  clients          Client[]
+  projects         Project[]
+  proposals        Proposal[]
+  deliverables     Deliverable[]
+  financialEntries FinancialEntry[]
+  mediaPlans       MediaPlan[]
+  campaigns        Campaign[]
+  socialAccounts   SocialAccount[]
+  socialPosts      SocialPost[]
+}
+
+enum Role {
+  OWNER // dono / administrador geral
+  MANAGER // atendimento / gestor de contas
+  TRAFFIC // gestor de tráfego pago
+  SOCIAL // social media / gestão de redes
+  PRODUCTION // produção / criação
+  FINANCE // financeiro
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(MANAGER)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  sessions         Session[]
+  managedClients   Client[]     @relation("AccountManager")
+  createdProposals Proposal[]
+  managedCampaigns Campaign[]
+  assignedPosts    SocialPost[]
+
+  @@index([agencyId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// CLIENTES E PROJETOS
+// ---------------------------------------------------------------------------
+
+enum ClientStatus {
+  ACTIVE
+  PROSPECT
+  PAUSED
+  CHURNED
+}
+
+model Client {
+  id        String       @id @default(cuid())
+  name      String
+  cnpj      String?
+  segment   String?
+  contact   String?
+  email     String?
+  phone     String?
+  status    ClientStatus @default(ACTIVE)
+  notes     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  accountManagerId String?
+  accountManager   User?   @relation("AccountManager", fields: [accountManagerId], references: [id])
+
+  projects         Project[]
+  proposals        Proposal[]
+  deliverables     Deliverable[]
+  financialEntries FinancialEntry[]
+  mediaPlans       MediaPlan[]
+  campaigns        Campaign[]
+  socialAccounts   SocialAccount[]
+
+  @@index([agencyId])
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  DONE
+  CANCELLED
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  deliverables Deliverable[]
+  mediaPlans   MediaPlan[]
+  campaigns    Campaign[]
+  socialPosts  SocialPost[]
+
+  @@index([clientId])
+  @@index([agencyId])
+}
+
+// ---------------------------------------------------------------------------
+// COMERCIAL: PROPOSTAS DE FEE E PEÇAS AVULSAS
+// ---------------------------------------------------------------------------
+
+enum ProposalType {
+  FEE_MENSAL // contrato de fee recorrente
+  PROJETO // projeto pontual
+  PECA_AVULSA // peça/serviço avulso
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+model Proposal {
+  id         String         @id @default(cuid())
+  number     String
+  title      String
+  type       ProposalType   @default(FEE_MENSAL)
+  status     ProposalStatus @default(DRAFT)
+  // valor total calculado a partir dos itens (armazenado em centavos)
+  totalCents Int            @default(0)
+  // para fee mensal: recorrência em meses
+  months     Int?
+  validUntil DateTime?
+  notes      String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  items ProposalItem[]
+
+  @@index([agencyId])
+  @@index([clientId])
+}
+
+model ProposalItem {
+  id          String @id @default(cuid())
+  description String
+  quantity    Int    @default(1)
+  unitCents   Int    @default(0) // valor unitário em centavos
+
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId])
+}
+
+// Peças/entregáveis de produção (peças avulsas ou dentro de projetos)
+enum DeliverableStatus {
+  BRIEFING
+  IN_PRODUCTION
+  REVIEW
+  APPROVAL
+  DELIVERED
+}
+
+model Deliverable {
+  id         String            @id @default(cuid())
+  title      String
+  type       String? // ex: post, banner, vídeo, landing page
+  status     DeliverableStatus @default(BRIEFING)
+  dueDate    DateTime?
+  priceCents Int               @default(0)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([agencyId])
+  @@index([clientId])
+}
+
+// ---------------------------------------------------------------------------
+// FINANCEIRO
+// ---------------------------------------------------------------------------
+
+enum EntryType {
+  RECEIVABLE // a receber
+  PAYABLE // a pagar
+}
+
+enum EntryStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model FinancialEntry {
+  id          String      @id @default(cuid())
+  description String
+  type        EntryType
+  status      EntryStatus @default(PENDING)
+  amountCents Int
+  category    String? // ex: fee, mídia, produção, imposto
+  dueDate     DateTime
+  paidAt      DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([agencyId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// MÍDIA E TRÁFEGO PAGO
+// ---------------------------------------------------------------------------
+
+model MediaPlan {
+  id          String   @id @default(cuid())
+  name        String
+  period      String? // ex: "Jul/2026"
+  budgetCents Int      @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  campaigns Campaign[]
+
+  @@index([agencyId])
+  @@index([clientId])
+}
+
+enum AdPlatform {
+  META // Facebook / Instagram
+  GOOGLE
+  TIKTOK
+  LINKEDIN
+  OUTRO
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+enum CampaignObjective {
+  AWARENESS
+  TRAFFIC
+  ENGAGEMENT
+  LEADS
+  SALES
+}
+
+model Campaign {
+  id          String            @id @default(cuid())
+  name        String
+  platform    AdPlatform        @default(META)
+  objective   CampaignObjective @default(TRAFFIC)
+  status      CampaignStatus    @default(DRAFT)
+  budgetCents Int               @default(0)
+  spentCents  Int               @default(0)
+  // métricas (sincronizadas via integração de ads)
+  impressions Int               @default(0)
+  clicks      Int               @default(0)
+  conversions Int               @default(0)
+  externalId  String? // id da campanha na plataforma (Meta/Google)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  mediaPlanId String?
+  mediaPlan   MediaPlan? @relation(fields: [mediaPlanId], references: [id], onDelete: SetNull)
+
+  managerId String?
+  manager   User?   @relation(fields: [managerId], references: [id])
+
+  @@index([agencyId])
+  @@index([clientId])
+}
+
+// ---------------------------------------------------------------------------
+// GESTÃO DE REDES SOCIAIS (estilo mLabs)
+// ---------------------------------------------------------------------------
+
+enum SocialPlatform {
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  LINKEDIN
+  YOUTUBE
+  X
+}
+
+model SocialAccount {
+  id          String         @id @default(cuid())
+  platform    SocialPlatform
+  handle      String // @perfil
+  externalId  String? // id da conta na plataforma
+  accessToken String? // token de integração (criptografar em produção)
+  connected   Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  posts SocialPost[]
+
+  @@index([agencyId])
+  @@index([clientId])
+}
+
+enum PostStatus {
+  IDEA
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+model SocialPost {
+  id          String     @id @default(cuid())
+  caption     String
+  mediaUrl    String?
+  status      PostStatus @default(DRAFT)
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  externalId  String? // id do post publicado na plataforma
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  accountId String
+  account   SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  assignedToId String?
+  assignedTo   User?   @relation(fields: [assignedToId], references: [id])
+
+  @@index([agencyId])
+  @@index([accountId])
+  @@index([scheduledAt])
+}
