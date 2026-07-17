@@ -1,22 +1,33 @@
 # 🌵 Cactus — Sistema de Gestão de Agência
 
 Sistema de gestão para agências de publicidade e marketing, cobrindo o ciclo
-completo da operação: clientes, projetos, propostas comerciais (fee mensal e
-peças avulsas), produção, financeiro, mídia/tráfego pago e gestão de redes
-sociais (estilo mLabs). Inspirado em ferramentas como SIGA e mLabs.
+completo da operação — do comercial à entrega, do financeiro à performance.
+Uma evolução do modelo clássico (estilo SIGA) para a agência moderna, que vive
+de **fee recorrente, performance, conteúdo e dados**, com integração de mídia,
+gestão de redes (estilo mLabs) e uma camada de IA.
 
 ## Módulos
 
+### Fundação
 | Módulo | O que faz |
 | --- | --- |
-| **Dashboard** | Indicadores da agência: MRR (receita recorrente), clientes/projetos ativos, contas a pagar/receber, investimento em mídia, propostas recentes e campanhas ativas. |
-| **Clientes** | Carteira de clientes com status, responsável de conta e visão 360° (projetos, propostas, financeiro e redes do cliente). |
+| **Dashboard** | Indicadores da agência: MRR, clientes/projetos ativos, a pagar/receber, margem das contas, investimento em mídia, propostas e campanhas. |
+| **Clientes** | Carteira com status, responsável de conta e **visão 360°** (projetos, propostas, financeiro, redes, margem e portal). |
 | **Projetos** | Trabalhos e contas em andamento, vinculados a clientes. |
-| **Propostas & Fee** | Orçamentos com itens, propostas de **fee mensal** recorrente e **peças avulsas**, com fluxo de status (rascunho → enviada → aprovada). |
-| **Peças & Produção** | Quadro (kanban) de produção de entregáveis: briefing → produção → revisão → aprovação → entregue. |
-| **Mídia & Tráfego** | Campanhas de tráfego pago (Meta, Google, TikTok…) com verba, investido, impressões, cliques, conversões e métricas calculadas (CTR, CPC, CPL). |
-| **Redes Sociais** | Gestão estilo mLabs: contas sociais por cliente e planejamento/agendamento de posts (ideia → rascunho → agendado → publicado). |
-| **Financeiro** | Contas a pagar e a receber, categorias, baixa de pagamentos e totais consolidados. |
+| **Propostas & Fee** | Orçamentos com itens, **fee mensal** recorrente e **peças avulsas**, com fluxo de status. |
+| **Peças & Produção** | Quadro **kanban** de entregáveis (briefing → produção → revisão → aprovação → entregue). |
+| **Mídia & Tráfego** | Campanhas (Meta, Google, TikTok…) com verba, investido e métricas calculadas (CTR, CPC, CPL). |
+| **Redes Sociais** | Estilo mLabs: contas sociais por cliente e agendamento de posts. |
+| **Financeiro** | Contas a pagar/receber, categorias, baixa de pagamentos e totais. |
+
+### Módulos modernos
+| Módulo | O que faz |
+| --- | --- |
+| **Rentabilidade** | **Margem real por cliente** = receita − custos de mídia/externos − custo das horas. Apontamento de horas, custo/hora da equipe, ranking e alerta de conta no vermelho. |
+| **Relatórios & Analytics** | Dashboards de aquisição por cliente (estilo GA4): KPIs com variação, tendência de sessões e sessões por canal, em gráficos SVG. |
+| **Portal do cliente** | Link público (`/portal/[token]`) onde o cliente **aprova ou pede ajustes** nas peças, sem login. |
+| **IA & Insights** | Alertas por regras (conta no vermelho, verba estourando, recebimento vencido, cliente sem post, proposta parada) + **resumo executivo via Claude** (com fallback por template). |
+| **Integrações** | OAuth + sincronização com **Meta Ads, Google Ads e GA4** (importa campanhas e métricas). |
 
 ## Stack
 
@@ -24,67 +35,63 @@ sociais (estilo mLabs). Inspirado em ferramentas como SIGA e mLabs.
 - **Prisma 6** ORM — SQLite em desenvolvimento (portável para PostgreSQL)
 - **Tailwind CSS 4**
 - Autenticação por sessão em cookie (`bcryptjs`)
-- Arquitetura **multi-agência** (multi-tenant) — todos os dados são isolados por agência.
+- Arquitetura **multi-agência** (multi-tenant) — dados isolados por agência
+- IA via **API do Claude** (`@anthropic-ai/sdk`) — opcional
 
 ## Como rodar
 
 ```bash
 npm install
-
-# copie as variáveis de ambiente
-cp .env.example .env
-
-# crie o banco e aplique o schema
-npx prisma migrate dev
-
-# popule com dados de exemplo
-npx prisma db seed
-
-# ambiente de desenvolvimento
+cp .env.example .env          # variáveis de ambiente
+npx prisma migrate dev        # cria o banco e aplica o schema
+npx prisma db seed            # popula com dados de exemplo
 npm run dev
 ```
 
 Acesse http://localhost:3000
 
-### Login de demonstração
+**Login de demonstração:** `atendimento@agenciacactus.com.br` / `cactus123`
+**Portal de demonstração:** `/portal/nomad-portal-demo`
 
-- **E-mail:** `atendimento@agenciacactus.com.br`
-- **Senha:** `cactus123`
+## Variáveis de ambiente (opcionais)
 
-## Integrações (roadmap)
+Tudo funciona sem elas (IA por template, integrações como "não configurado").
+Para ativar os recursos externos, defina no `.env` (veja `.env.example`):
 
-O modelo de dados já prevê os pontos de integração externa:
+| Variável | Habilita |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Resumo executivo gerado por IA (Claude) em **IA & Insights** |
+| `META_APP_ID` / `META_APP_SECRET` | Conexão OAuth com o **Meta Ads** |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Conexão OAuth com **Google Ads** e **GA4** |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Sincronização do **Google Ads** |
 
-- **Meta Ads / Google Ads** — campos `externalId` e métricas em `Campaign`,
-  prontos para sincronização automática (hoje as métricas são editáveis
-  manualmente).
-- **Publicação em redes sociais** — `SocialAccount.accessToken` e
-  `SocialPost.externalId` para o fluxo OAuth + publicação via API.
-
-## Migração para produção (PostgreSQL)
+## Deploy em produção (PostgreSQL)
 
 1. Em `prisma/schema.prisma`, troque `provider = "sqlite"` por `"postgresql"`.
-2. Ajuste `DATABASE_URL` no `.env`.
-3. Rode `npx prisma migrate dev`.
+2. Defina `DATABASE_URL` apontando para o Postgres (Railway, Supabase, Neon…).
+3. Aplique as migrações: `npx prisma migrate deploy`.
+4. `npm run build && npm start` (ou faça deploy na Vercel/Railway).
+
+**Checklist de produção:** definir `NODE_ENV=production`; criptografar
+`accessToken`/`refreshToken` de `Integration` e `SocialAccount`; configurar as
+URLs de callback OAuth no console de cada plataforma como
+`https://SEU_DOMINIO/api/integrations/{provider}/callback`.
 
 ## Estrutura
 
 ```
 prisma/
-  schema.prisma      # modelo de dados completo do domínio
-  seed.ts            # dados de exemplo
+  schema.prisma          # modelo de dados completo do domínio
+  seed.ts                # dados de exemplo
 src/
   app/
-    login/           # autenticação
-    (app)/           # área autenticada (layout com sidebar)
-      dashboard/
-      clientes/
-      projetos/
-      propostas/
-      pecas/
-      midia/
-      redes/
-      financeiro/
-  components/         # UI reutilizável (cards, badges, formulários)
-  lib/               # prisma, auth, formatação, rótulos
+    login/               # autenticação
+    portal/[token]/      # portal público de aprovação (sem login)
+    api/integrations/    # rotas OAuth (connect/callback)
+    (app)/               # área autenticada (layout com sidebar)
+      dashboard/  clientes/  projetos/  propostas/  pecas/
+      midia/  redes/  financeiro/  rentabilidade/  relatorios/
+      ia/  integracoes/
+  components/             # UI reutilizável (cards, badges, gráficos, formulários)
+  lib/                   # prisma, auth, rentabilidade, insights, ia, integrações
 ```
