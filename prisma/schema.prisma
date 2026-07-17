@@ -38,6 +38,9 @@ model Agency {
   socialPosts      SocialPost[]
   timeEntries      TimeEntry[]
   analytics        AnalyticsDaily[]
+  suppliers        Supplier[]
+  quotations       Quotation[]
+  productionOrders ProductionOrder[]
 }
 
 enum Role {
@@ -70,6 +73,8 @@ model User {
   managedCampaigns Campaign[]
   assignedPosts    SocialPost[]
   timeEntries      TimeEntry[]
+  createdQuotations       Quotation[]
+  createdProductionOrders ProductionOrder[]
 
   @@index([agencyId])
 }
@@ -126,6 +131,8 @@ model Client {
   socialAccounts   SocialAccount[]
   timeEntries      TimeEntry[]
   analytics        AnalyticsDaily[]
+  quotations       Quotation[]
+  productionOrders ProductionOrder[]
 
   @@index([agencyId])
 }
@@ -159,6 +166,7 @@ model Project {
   campaigns    Campaign[]
   socialPosts  SocialPost[]
   timeEntries  TimeEntry[]
+  quotations   Quotation[]
 
   @@index([clientId])
   @@index([agencyId])
@@ -526,4 +534,206 @@ model AnalyticsDaily {
   @@index([agencyId])
   @@index([clientId])
   @@index([date])
+}
+
+// ---------------------------------------------------------------------------
+// COTAÇÃO COM FORNECEDORES E PEDIDO DE PRODUÇÃO
+// Fluxo: cadastra fornecedores → cria pedido de cotação com itens → dispara
+// por e-mail/WhatsApp aos fornecedores → monta os orçamentos recebidos →
+// escolhe o vencedor e gera o pedido de produção (com BV da agência e a
+// forma de faturamento contra o cliente).
+// ---------------------------------------------------------------------------
+
+enum SupplierCategory {
+  GRAFICA // gráfica / impressos
+  BRINDES // brindes e presentes
+  AUDIOVISUAL // produção de áudio e vídeo
+  FOTOGRAFIA // fotografia
+  EVENTOS // eventos e ativações
+  IMPRESSAO_GRANDE // impressão em grande formato / comunicação visual
+  WEB_TECH // desenvolvimento / tecnologia
+  OUTRO
+}
+
+model Supplier {
+  id        String           @id @default(cuid())
+  name      String
+  cnpj      String?
+  category  SupplierCategory @default(OUTRO)
+  contact   String? // pessoa de contato
+  email     String?
+  phone     String? // usado para disparo via WhatsApp
+  city      String?
+  notes     String?
+  active    Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  quotes SupplierQuote[]
+
+  @@index([agencyId])
+}
+
+enum QuotationStatus {
+  DRAFT // rascunho, montando os itens
+  SENT // pedido de cotação disparado aos fornecedores
+  QUOTED // ao menos um fornecedor respondeu
+  ORDERED // já gerou pedido de produção
+  CANCELLED
+}
+
+model Quotation {
+  id        String          @id @default(cuid())
+  number    String
+  title     String
+  status    QuotationStatus @default(DRAFT)
+  deadline  DateTime? // prazo para os fornecedores responderem
+  notes     String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  items            QuotationItem[]
+  supplierQuotes   SupplierQuote[]
+  productionOrders ProductionOrder[]
+
+  @@index([agencyId])
+  @@index([clientId])
+}
+
+model QuotationItem {
+  id          String  @id @default(cuid())
+  description String
+  quantity    Int     @default(1)
+  unit        String  @default("un") // un, mil, m², cx, h...
+  spec        String? // especificação técnica (cor, material, formato)
+
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  quoteLines SupplierQuoteLine[]
+
+  @@index([quotationId])
+}
+
+enum SupplierQuoteStatus {
+  INVITED // convidado (disparo pendente ou já enviado)
+  RECEIVED // orçamento recebido/preenchido no sistema
+  SELECTED // escolhido para o pedido de produção
+  REJECTED // descartado
+}
+
+// Canal pelo qual o pedido de cotação foi disparado ao fornecedor
+enum DispatchChannel {
+  NONE
+  EMAIL
+  WHATSAPP
+  BOTH
+}
+
+model SupplierQuote {
+  id           String              @id @default(cuid())
+  status       SupplierQuoteStatus @default(INVITED)
+  channel      DispatchChannel     @default(NONE)
+  sentAt       DateTime? // quando o pedido foi disparado
+  respondedAt  DateTime? // quando o orçamento foi lançado
+  totalCents   Int                 @default(0) // soma das linhas
+  leadTimeDays Int? // prazo de entrega informado pelo fornecedor
+  notes        String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  lines            SupplierQuoteLine[]
+  productionOrders ProductionOrder[]
+
+  @@unique([quotationId, supplierId])
+  @@index([quotationId])
+  @@index([supplierId])
+}
+
+model SupplierQuoteLine {
+  id        String @id @default(cuid())
+  unitCents Int    @default(0) // preço unitário ofertado para o item
+
+  supplierQuoteId String
+  supplierQuote   SupplierQuote @relation(fields: [supplierQuoteId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   QuotationItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierQuoteId, itemId])
+  @@index([supplierQuoteId])
+  @@index([itemId])
+}
+
+// Forma de faturamento do pedido de produção contra o cliente
+enum BillingMethod {
+  SIGA // Faturamento SIGA — o fornecedor fatura direto o cliente e a agência recebe o BV
+  FATURADO_LIQUIDO // Faturado líquido contra o cliente aos cuidados da agência
+}
+
+enum ProductionOrderStatus {
+  OPEN // aberto / aguardando produção
+  IN_PRODUCTION // em produção
+  DELIVERED // entregue
+  INVOICED // faturado
+  CANCELLED
+}
+
+model ProductionOrder {
+  id            String                @id @default(cuid())
+  number        String
+  status        ProductionOrderStatus @default(OPEN)
+  billingMethod BillingMethod         @default(FATURADO_LIQUIDO)
+  // BV da agência (Bonificação de Volume) em % — markup sobre o custo do fornecedor
+  bvPercent     Float                 @default(0)
+  // custo líquido do fornecedor "congelado" no momento do pedido (centavos)
+  supplierCostCents Int               @default(0)
+  // valor do BV calculado (centavos)
+  bvCents          Int                @default(0)
+  // total faturado contra o cliente (custo + BV) em centavos
+  clientTotalCents Int                @default(0)
+  deliveryDate     DateTime?
+  notes            String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  supplierQuoteId String
+  supplierQuote   SupplierQuote @relation(fields: [supplierQuoteId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  @@index([agencyId])
+  @@index([quotationId])
+  @@index([clientId])
 }

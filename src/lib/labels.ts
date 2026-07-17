@@ -105,6 +105,55 @@ export const postStatus: Record<string, Meta> = {
   FAILED: { label: "Falhou", tone: "red" },
 };
 
+export const supplierCategory: Record<string, Meta> = {
+  GRAFICA: { label: "Gráfica / impressos", tone: "blue" },
+  BRINDES: { label: "Brindes", tone: "purple" },
+  AUDIOVISUAL: { label: "Audiovisual", tone: "red" },
+  FOTOGRAFIA: { label: "Fotografia", tone: "amber" },
+  EVENTOS: { label: "Eventos", tone: "green" },
+  IMPRESSAO_GRANDE: { label: "Comunicação visual", tone: "blue" },
+  WEB_TECH: { label: "Web / Tecnologia", tone: "gray" },
+  OUTRO: { label: "Outro", tone: "gray" },
+};
+
+export const quotationStatus: Record<string, Meta> = {
+  DRAFT: { label: "Rascunho", tone: "gray" },
+  SENT: { label: "Enviada", tone: "blue" },
+  QUOTED: { label: "Orçada", tone: "amber" },
+  ORDERED: { label: "Pedido gerado", tone: "green" },
+  CANCELLED: { label: "Cancelada", tone: "red" },
+};
+
+export const supplierQuoteStatus: Record<string, Meta> = {
+  INVITED: { label: "Convidado", tone: "gray" },
+  RECEIVED: { label: "Recebido", tone: "blue" },
+  SELECTED: { label: "Escolhido", tone: "green" },
+  REJECTED: { label: "Descartado", tone: "red" },
+};
+
+export const dispatchChannel: Record<string, Meta> = {
+  NONE: { label: "Não enviado", tone: "gray" },
+  EMAIL: { label: "E-mail", tone: "blue" },
+  WHATSAPP: { label: "WhatsApp", tone: "green" },
+  BOTH: { label: "E-mail + WhatsApp", tone: "purple" },
+};
+
+export const billingMethod: Record<string, Meta> = {
+  SIGA: { label: "Faturamento SIGA", tone: "blue" },
+  FATURADO_LIQUIDO: {
+    label: "Faturado líquido a/c da agência",
+    tone: "purple",
+  },
+};
+
+export const productionOrderStatus: Record<string, Meta> = {
+  OPEN: { label: "Aberto", tone: "blue" },
+  IN_PRODUCTION: { label: "Em produção", tone: "amber" },
+  DELIVERED: { label: "Entregue", tone: "purple" },
+  INVOICED: { label: "Faturado", tone: "green" },
+  CANCELLED: { label: "Cancelado", tone: "red" },
+};
+
 /** Helper: pega label/tone com fallback seguro. */
 export function meta(map: Record<string, Meta>, key: string): Meta {
   return map[key] ?? { label: key, tone: "gray" };
