@@ -38,6 +38,7 @@ model Agency {
   socialPosts      SocialPost[]
   timeEntries      TimeEntry[]
   analytics        AnalyticsDaily[]
+  integrations     Integration[]
 }
 
 enum Role {
@@ -526,4 +527,51 @@ model AnalyticsDaily {
   @@index([agencyId])
   @@index([clientId])
   @@index([date])
+}
+
+// ---------------------------------------------------------------------------
+// INTEGRAÇÕES EXTERNAS (Meta Ads, Google Ads, GA4) — OAuth + sincronização
+// ---------------------------------------------------------------------------
+
+enum IntegrationProvider {
+  META_ADS // Meta Marketing API (Facebook/Instagram Ads)
+  GOOGLE_ADS // Google Ads API
+  GA4 // Google Analytics 4 Data API
+}
+
+enum IntegrationStatus {
+  DISCONNECTED
+  CONNECTED
+  ERROR
+}
+
+model Integration {
+  id       String              @id @default(cuid())
+  provider IntegrationProvider
+  status   IntegrationStatus   @default(DISCONNECTED)
+
+  // Conta/propriedade externa selecionada (ad account id, GA4 property id…)
+  externalAccountId String?
+  externalAccountName String?
+
+  // Credenciais OAuth (criptografar em produção)
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  scope        String?
+
+  lastSyncAt DateTime?
+  lastError  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agencyId String
+  agency   Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  // Integração pode ser da agência (clientId nulo) ou específica de um cliente
+  clientId String?
+
+  @@unique([agencyId, provider, clientId])
+  @@index([agencyId])
 }
