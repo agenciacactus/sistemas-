@@ -14,6 +14,50 @@ export function computeBV(supplierCostCents: number, bvPercent: number) {
   return { bvCents, clientTotalCents };
 }
 
+/**
+ * Deriva os títulos financeiros de um pedido de produção conforme a forma
+ * de faturamento contra o cliente.
+ *
+ * - FATURADO_LIQUIDO: a agência paga o líquido ao fornecedor (a pagar) e
+ *   fatura o total (custo + BV) contra o cliente (a receber).
+ * - SIGA: o fornecedor fatura o cliente direto; a agência só recebe o BV.
+ */
+export function deriveFinancialEntries(opts: {
+  billingMethod: "SIGA" | "FATURADO_LIQUIDO";
+  orderNumber: string;
+  supplierName: string;
+  supplierCostCents: number;
+  bvCents: number;
+  clientTotalCents: number;
+}): { description: string; type: "PAYABLE" | "RECEIVABLE"; amountCents: number }[] {
+  const entries: {
+    description: string;
+    type: "PAYABLE" | "RECEIVABLE";
+    amountCents: number;
+  }[] = [];
+
+  if (opts.billingMethod === "SIGA") {
+    entries.push({
+      description: `BV da agência — ${opts.orderNumber} (${opts.supplierName})`,
+      type: "RECEIVABLE",
+      amountCents: opts.bvCents,
+    });
+  } else {
+    entries.push({
+      description: `Pagamento fornecedor — ${opts.orderNumber} (${opts.supplierName})`,
+      type: "PAYABLE",
+      amountCents: opts.supplierCostCents,
+    });
+    entries.push({
+      description: `Faturamento produção — ${opts.orderNumber}`,
+      type: "RECEIVABLE",
+      amountCents: opts.clientTotalCents,
+    });
+  }
+
+  return entries.filter((e) => e.amountCents > 0);
+}
+
 type DispatchItem = {
   description: string;
   quantity: number;

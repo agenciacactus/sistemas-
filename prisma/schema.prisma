@@ -310,8 +310,13 @@ model FinancialEntry {
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
+  // origem: pedido de produção que gerou este lançamento (quando aplicável)
+  productionOrderId String?
+  productionOrder   ProductionOrder? @relation(fields: [productionOrderId], references: [id], onDelete: SetNull)
+
   @@index([agencyId])
   @@index([status])
+  @@index([productionOrderId])
 }
 
 // ---------------------------------------------------------------------------
@@ -732,6 +737,8 @@ model ProductionOrder {
 
   createdById String?
   createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  financialEntries FinancialEntry[]
 
   @@index([agencyId])
   @@index([quotationId])

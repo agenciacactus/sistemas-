@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session-guard";
 import { prisma } from "@/lib/prisma";
 import { parseToCents } from "@/lib/format";
-import { computeBV } from "@/lib/quotation";
+import { computeBV, deriveFinancialEntries } from "@/lib/quotation";
 
 // ---------------------------------------------------------------------------
 // Criar pedido de cotação (itens + fornecedores convidados)
@@ -272,7 +272,7 @@ export async function generateProductionOrder(formData: FormData) {
 
   const sq = await prisma.supplierQuote.findFirst({
     where: { id: supplierQuoteId, quotation: { agencyId: user.agencyId } },
-    include: { quotation: true },
+    include: { quotation: true, supplier: true },
   });
   if (!sq) return;
   if (sq.totalCents <= 0) return; // precisa ter orçamento lançado
@@ -305,6 +305,17 @@ export async function generateProductionOrder(formData: FormData) {
     },
   });
 
+  // Lançamentos financeiros derivados da forma de faturamento
+  const dueDate = order.deliveryDate ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const entries = deriveFinancialEntries({
+    billingMethod: order.billingMethod,
+    orderNumber: order.number,
+    supplierName: sq.supplier.name,
+    supplierCostCents: sq.totalCents,
+    bvCents,
+    clientTotalCents,
+  });
+
   await prisma.$transaction([
     prisma.supplierQuote.update({
       where: { id: sq.id },
@@ -314,6 +325,21 @@ export async function generateProductionOrder(formData: FormData) {
       where: { id: sq.quotationId },
       data: { status: "ORDERED" },
     }),
+    ...entries.map((e) =>
+      prisma.financialEntry.create({
+        data: {
+          description: e.description,
+          type: e.type,
+          status: "PENDING",
+          amountCents: e.amountCents,
+          category: "produção",
+          dueDate,
+          agencyId: user.agencyId,
+          clientId: sq.quotation.clientId,
+          productionOrderId: order.id,
+        },
+      }),
+    ),
   ]);
 
   redirect(`/producao/${order.id}`);

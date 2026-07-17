@@ -4,7 +4,13 @@ import { requireUser } from "@/lib/session-guard";
 import { prisma } from "@/lib/prisma";
 import { formatBRL, formatDate } from "@/lib/format";
 import { Card, PageHeader, Badge } from "@/components/ui";
-import { meta, productionOrderStatus, billingMethod } from "@/lib/labels";
+import {
+  meta,
+  productionOrderStatus,
+  billingMethod,
+  entryType,
+  entryStatus,
+} from "@/lib/labels";
 import { setProductionOrderStatus } from "../actions";
 
 const STATUS_OPTIONS = ["OPEN", "IN_PRODUCTION", "DELIVERED", "INVOICED", "CANCELLED"];
@@ -24,6 +30,7 @@ export default async function ProducaoDetailPage({
       createdBy: true,
       quotation: { include: { items: true } },
       supplierQuote: { include: { supplier: true, lines: true } },
+      financialEntries: { orderBy: { type: "asc" } },
     },
   });
   if (!order) notFound();
@@ -130,6 +137,43 @@ export default async function ProducaoDetailPage({
               {billingExplain}
             </div>
           </Card>
+
+          {/* Lançamentos financeiros gerados automaticamente */}
+          {order.financialEntries.length > 0 && (
+            <Card>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">Lançamentos financeiros</h2>
+                <Link href="/financeiro" className="text-sm text-brand-600 hover:underline">
+                  Ver no financeiro →
+                </Link>
+              </div>
+              <table className="w-full text-sm">
+                <tbody>
+                  {order.financialEntries.map((e) => {
+                    const et = meta(entryType, e.type);
+                    const es = meta(entryStatus, e.status);
+                    return (
+                      <tr key={e.id} className="border-b border-gray-50 last:border-0">
+                        <td className="py-2.5 text-gray-800">{e.description}</td>
+                        <td className="py-2.5">
+                          <Badge tone={et.tone}>{et.label}</Badge>
+                        </td>
+                        <td className="py-2.5">
+                          <Badge tone={es.tone}>{es.label}</Badge>
+                        </td>
+                        <td className="py-2.5 text-right font-medium text-gray-800">
+                          {formatBRL(e.amountCents)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="mt-3 text-xs text-gray-400">
+                Títulos gerados automaticamente ao criar o pedido, conforme a forma de faturamento.
+              </p>
+            </Card>
+          )}
         </div>
 
         {/* Coluna lateral */}
