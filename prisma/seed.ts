@@ -5,6 +5,12 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Limpa dados (ordem respeita as FKs)
+  await prisma.productionOrder.deleteMany();
+  await prisma.supplierQuoteLine.deleteMany();
+  await prisma.supplierQuote.deleteMany();
+  await prisma.quotationItem.deleteMany();
+  await prisma.quotation.deleteMany();
+  await prisma.supplier.deleteMany();
   await prisma.analyticsDaily.deleteMany();
   await prisma.timeEntry.deleteMany();
   await prisma.socialPost.deleteMany();
@@ -450,6 +456,122 @@ async function main() {
   }
 
   await prisma.analyticsDaily.createMany({ data: analyticsRows });
+
+  // -------------------------------------------------------------------------
+  // Fornecedores, cotação e pedido de produção (demonstração do fluxo)
+  // -------------------------------------------------------------------------
+  const grafica = await prisma.supplier.create({
+    data: {
+      name: "Gráfica Aurora",
+      cnpj: "11.111.111/0001-11",
+      category: "GRAFICA",
+      contact: "Cláudia",
+      email: "comercial@graficaaurora.com.br",
+      phone: "(11) 93333-3333",
+      city: "São Paulo",
+      agencyId: agency.id,
+    },
+  });
+
+  const grafica2 = await prisma.supplier.create({
+    data: {
+      name: "PrintFast Impressos",
+      category: "GRAFICA",
+      contact: "Roberto",
+      email: "orcamento@printfast.com.br",
+      phone: "(11) 94444-4444",
+      city: "Guarulhos",
+      agencyId: agency.id,
+    },
+  });
+
+  await prisma.supplier.create({
+    data: {
+      name: "Studio Vídeo Norte",
+      category: "AUDIOVISUAL",
+      contact: "Marcos",
+      email: "contato@studionorte.com.br",
+      phone: "(11) 95555-5555",
+      city: "São Paulo",
+      agencyId: agency.id,
+    },
+  });
+
+  await prisma.supplier.create({
+    data: {
+      name: "Brindes & Cia",
+      category: "BRINDES",
+      contact: "Paula",
+      email: "vendas@brindesecia.com.br",
+      phone: "(11) 96666-6666",
+      agencyId: agency.id,
+    },
+  });
+
+  const quotation = await prisma.quotation.create({
+    data: {
+      number: "COT-2026-001",
+      title: "Impressão de folder institucional — Nomad Café",
+      status: "QUOTED",
+      deadline: new Date("2026-07-24"),
+      notes: "Papel couché 150g, 4x4 cores, acabamento com verniz.",
+      agencyId: agency.id,
+      clientId: nomad.id,
+      projectId: nomadProject.id,
+      createdById: owner.id,
+      items: {
+        create: [
+          { description: "Folder institucional A4 dobrado", quantity: 2000, unit: "un", spec: "Couché 150g, 4x4, verniz" },
+          { description: "Cartão de visita", quantity: 1000, unit: "un", spec: "Couché 300g, 4x4" },
+        ],
+      },
+    },
+    include: { items: true },
+  });
+
+  const folder = quotation.items.find((i) => i.description.startsWith("Folder"))!;
+  const cartao = quotation.items.find((i) => i.description.startsWith("Cartão"))!;
+
+  // Orçamento recebido da Gráfica Aurora (mais barato)
+  await prisma.supplierQuote.create({
+    data: {
+      quotationId: quotation.id,
+      supplierId: grafica.id,
+      status: "RECEIVED",
+      channel: "EMAIL",
+      sentAt: new Date("2026-07-16"),
+      respondedAt: new Date("2026-07-17"),
+      leadTimeDays: 5,
+      totalCents: 2000 * 90 + 1000 * 60, // R$ 1.800 + R$ 600 = R$ 2.400
+      notes: "Prazo de 5 dias úteis após aprovação da arte.",
+      lines: {
+        create: [
+          { itemId: folder.id, unitCents: 90 },
+          { itemId: cartao.id, unitCents: 60 },
+        ],
+      },
+    },
+  });
+
+  // Orçamento recebido da PrintFast (mais caro)
+  await prisma.supplierQuote.create({
+    data: {
+      quotationId: quotation.id,
+      supplierId: grafica2.id,
+      status: "RECEIVED",
+      channel: "WHATSAPP",
+      sentAt: new Date("2026-07-16"),
+      respondedAt: new Date("2026-07-17"),
+      leadTimeDays: 3,
+      totalCents: 2000 * 105 + 1000 * 70, // R$ 2.100 + R$ 700 = R$ 2.800
+      lines: {
+        create: [
+          { itemId: folder.id, unitCents: 105 },
+          { itemId: cartao.id, unitCents: 70 },
+        ],
+      },
+    },
+  });
 
   console.log("Seed concluído.");
   console.log("Login: atendimento@agenciacactus.com.br / senha: cactus123");
